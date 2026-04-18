@@ -18,9 +18,6 @@ on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
-      Tempoary_IP:
-        description: "固件 IP 地址 [可选]"
-        default: ""
       ssh:
         description: "SSH connection to Actions"
         required: false
@@ -60,12 +57,14 @@ env:
 
 jobs:
   build:
+    env:
+      FORCE_UNSAFE_CONFIGURE: 1
     runs-on: ubuntu-24.04
     container:
       image: ubuntu:20.04
     steps:
       - name: 检验结束  Checkout # 1.导入主分支
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: 初始化编译环境  Initialization environment # 2.初始化环境
         env:
@@ -151,12 +150,17 @@ jobs:
 
       - name: 整理固件文件夹  Organize files
         id: organize
-        if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+        if: steps.compile.outputs.status == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
         run: |
-          cd openwrt/bin/targets/*/*
-          rm -rf packages
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-          echo "status=success" >> $GITHUB_OUTPUT
+          if ls openwrt/bin/targets/*/* 1>/dev/null 2>&1; then
+            cd openwrt/bin/targets/*/*
+            rm -rf packages
+            echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "Firmware not found!"
+            exit 1
+          fi
 
       - name: 加载固件在github空间  Upload firmware directory
         uses: actions/upload-artifact@main
